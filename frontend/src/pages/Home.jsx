@@ -169,14 +169,29 @@ useEffect(() => {
       recognition.stop();
       isRecognizingRef.current = false;
       setListening(false);
-      const data = await getGeminiResponse(transcript);
-      handleCommand(data);
-      setAiText(data.response);
-      setUserText("");
+      const jsonString = await getGeminiResponse(transcript);
+
+// Convert AI JSON string into JavaScript object
+let data;
+try {
+  data = JSON.parse(jsonString);
+} catch (e) {
+  console.error("❌ Invalid JSON received:", jsonString);
+  return;
+}
+
+handleCommand(data);
+setAiText(data.response);
+setUserText("");
+
+      // const data = await getGeminiResponse(transcript);
+      // handleCommand(data);
+      // setAiText(data.response);
+      // setUserText("");
     }
   };
 
-
+//  
     const greeting = new SpeechSynthesisUtterance(`Hello ${userData.name}, what can I help you with?`);
     greeting.lang = 'hi-IN';
    
