@@ -42,19 +42,46 @@ Important:
 now your userInput- ${command}
 `;
 
+//     const result=await axios.post(apiUrl,{
+//     "contents": [{
+//     "parts":[{"text": prompt}]
+//     }]
+//     })
+// return result.data.candidates[0].content.parts[0].text
+// } catch (error) {
+//     console.log(error)
+//     return null
+// }
+// }
+  const result = await axios.post(apiUrl, {
+      contents: [
+        {
+          parts: [{ text: prompt }],
+        },
+      ],
+    },
+    //  {
+    //     headers: {
+    //       "Content-Type": "application/json",
+    //       "x-goog-api-key": process.env.GEMINI_API_KEY, // ✅ NEW REQUIRED HEADER
+    //     },
+    //   }
+    );
 
+    // SAFE extraction
+    const text =
+      result?.data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
+    // If Gemini returned nothing
+    if (!text) {
+      console.log("⚠️ Gemini returned no text:", result.data);
+      return null;
+    }
 
-
-    const result=await axios.post(apiUrl,{
-    "contents": [{
-    "parts":[{"text": prompt}]
-    }]
-    })
-return result.data.candidates[0].content.parts[0].text
-} catch (error) {
-    console.log(error)
-}
-}
-
-export default geminiResponse
+    return text;
+  } catch (error) {
+    console.log("GEMINI ERROR:", error.response?.data || error.message);
+    return null; // <-- important to prevent backend crash
+  }
+};
+export default geminiResponse;

@@ -22,7 +22,12 @@ try {
   const result=await axios.post(`${serverUrl}/api/user/asktoassistant`,{command},{withCredentials:true})
   return result.data
 } catch (error) {
-  console.log(error)
+  console.error('Error getting Gemini response:', error)
+  return {
+    type: 'error',
+    userInput: command,
+    response: 'Sorry, I encountered an error. Please try again.'
+  }
 }
     }
 

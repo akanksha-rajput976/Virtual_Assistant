@@ -38,69 +38,187 @@ return res.status(200).json(user)
 }
 
 
-export const askToAssistant=async (req,res)=>{
-   try {
-      const {command}=req.body
-      const user=await User.findById(req.userId);
-      user.history.push(command)
-      user.save()
-      const userName=user.name
-      const assistantName=user.assistantName
-      const result=await geminiResponse(command,assistantName,userName)
+// export const askToAssistant=async (req,res)=>{
+//    try {
+//       const {command}=req.body
+//       const user=await User.findById(req.userId);
+//       user.history.push(command)
+//       user.save()
+//       const userName=user.name
+//       const assistantName=user.assistantName
+//       const result=await geminiResponse(command,assistantName,userName)
 
-      const jsonMatch=result.match(/{[\s\S]*}/)
-      if(!jsonMatch){
-         return res.ststus(400).json({response:"sorry, i can't understand"})
-      }
-      const gemResult=JSON.parse(jsonMatch[0])
-      console.log(gemResult)
-      const type=gemResult.type
+//       const jsonMatch=result.match(/{[\s\S]*}/)
+//       if(!jsonMatch){
+//          return res.status(400).json({response:"sorry, i can't understand"})
+//       }
+//       const gemResult=JSON.parse(jsonMatch[0])
+//       console.log(gemResult)
+//       const type=gemResult.type
 
-      switch(type){
-         case 'get-date' :
-            return res.json({
-               type,
-               userInput:gemResult.userInput,
-               response:`current date is ${moment().format("YYYY-MM-DD")}`
-            });
-            case 'get-time':
-                return res.json({
-               type,
-               userInput:gemResult.userInput,
-               response:`current time is ${moment().format("hh:mm A")}`
-            });
-             case 'get-day':
-                return res.json({
-               type,
-               userInput:gemResult.userInput,
-               response:`today is ${moment().format("dddd")}`
-            });
-            case 'get-month':
-                return res.json({
-               type,
-               userInput:gemResult.userInput,
-               response:`today is ${moment().format("MMMM")}`
-            });
-      case 'google-search':
-      case 'youtube-search':
-      case 'youtube-play':
-      case 'general':
-      case  "calculator-open":
-      case "instagram-open": 
-       case "facebook-open": 
-       case "weather-show" :
-         return res.json({
-            type,
-            userInput:gemResult.userInput,
-            response:gemResult.response,
-         });
+//       switch(type){
+//          case 'get-date' :
+//             return res.json({
+//                type,
+//                userInput:gemResult.userInput,
+//                response:`current date is ${moment().format("YYYY-MM-DD")}`
+//             });
+//             case 'get-time':
+//                 return res.json({
+//                type,
+//                userInput:gemResult.userInput,
+//                response:`current time is ${moment().format("hh:mm A")}`
+//             });
+//              case 'get-day':
+//                 return res.json({
+//                type,
+//                userInput:gemResult.userInput,
+//                response:`today is ${moment().format("dddd")}`
+//             });
+//             case 'get-month':
+//                 return res.json({
+//                type,
+//                userInput:gemResult.userInput,
+//                response:`today is ${moment().format("MMMM")}`
+//             });
+//       case 'google-search':
+//       case 'youtube-search':
+//       case 'youtube-play':
+//       case 'general':
+//       case  "calculator-open":
+//       case "instagram-open": 
+//        case "facebook-open": 
+//        case "weather-show" :
+//          return res.json({
+//             type,
+//             userInput:gemResult.userInput,
+//             response:gemResult.response,
+//          });
 
-         default:
-            return res.status(400).json({ response: "I didn't understand that command." })
-      }
+//          default:
+//             return res.status(400).json({ response: "I didn't understand that command." })
+//       }
      
 
-   } catch (error) {
-  return res.status(500).json({ response: "ask assistant error" })
-   }
-}
+//    } catch (error) {
+//   return res.status(500).json({ response: "ask assistant error" })
+//    }
+// }
+
+export const askToAssistant = async (req, res) => {
+  try {
+     console.log("hello")
+    const { command } = req.body;
+    
+    if (!command) {
+    
+      return res.status(400).json({ response: "No command provided" });
+    }
+
+    const user = await User.findById(req.userId);
+    if (!user) {
+      return res.status(400).json({ response: "User not found" });
+    }
+
+    // Ensure history array exists
+    if (!Array.isArray(user.history)) {
+      user.history = [];
+    }
+
+    user.history.push(command);
+    await user.save();
+
+    const userName = user.name;
+    const assistantName = user.assistantName;
+
+    const result = await geminiResponse(command, assistantName, userName);
+
+    // ⛔ If Gemini returned nothing → avoid crash
+    if (!result) {
+      return res.status(400).json({
+        response: "AI did not return valid data",
+      });
+    }
+
+    // Match JSON safely
+    const jsonMatch = result.match(/{[\s\S]*}/);
+
+    if (!jsonMatch) {
+      return res.status(400).json({
+        response: "AI returned no JSON object",
+      });
+    }
+
+    let gemResult;
+    try {
+      gemResult = JSON.parse(jsonMatch[0]);
+    } catch (err) {
+      console.log("JSON PARSE ERROR:", err);
+      console.log("Attempted to parse:", jsonMatch[0]);
+      return res.status(400).json({
+        response: "AI returned invalid JSON format",
+      });
+    }
+
+    if (!gemResult.type) {
+      console.log("Missing 'type' field in gemResult:", gemResult);
+      return res.status(400).json({
+        response: "AI response missing required 'type' field",
+      });
+    }
+
+    const type = gemResult.type;
+
+    switch (type) {
+      case "get-date":
+        return res.json({
+          type,
+          userInput: gemResult.userInput,
+          response: `current date is ${moment().format("YYYY-MM-DD")}`,
+        });
+
+      case "get-time":
+        return res.json({
+          type,
+          userInput: gemResult.userInput,
+          response: `current time is ${moment().format("hh:mm A")}`,
+        });
+
+      case "get-day":
+        return res.json({
+          type,
+          userInput: gemResult.userInput,
+          response: `today is ${moment().format("dddd")}`,
+        });
+
+      case "get-month":
+        return res.json({
+          type,
+          userInput: gemResult.userInput,
+          response: `today is ${moment().format("MMMM")}`,
+        });
+
+      case "google-search":
+      case "youtube-search":
+      case "youtube-play":
+      case "general":
+      case "calculator-open":
+      case "instagram-open":
+      case "facebook-open":
+      case "weather-show":
+        return res.json({
+          type,
+          userInput: gemResult.userInput,
+          response: gemResult.response,
+        });
+
+      default:
+        return res.status(400).json({
+          response: "I didn't understand that command.",
+        });
+    }
+  } catch (error) {
+    console.log("ASK ASSISTANT ERROR:", error);
+    return res.status(500).json({ response: "ask assistant error" });
+  }
+};

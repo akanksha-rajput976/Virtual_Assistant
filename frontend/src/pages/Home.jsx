@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useRef, useState } from 'react'
-import { userDataContext } from '../context/userContext'
+import { userDataContext } from '../context/UserContext'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import aiImg from "../assets/ai.gif"
@@ -17,6 +17,31 @@ function Home() {
   const [ham,setHam]=useState(false)
   const isRecognizingRef=useRef(false)
   const synth=window.speechSynthesis
+
+  const parseAIResponse = (raw) => {
+    if (!raw) return null;
+    if (typeof raw !== 'string') return raw;
+    try {
+      return JSON.parse(raw);
+    } catch (e) {
+      try {
+        // Attempt common fixes: quote unquoted keys and convert single quotes to double
+        let s = raw.replace(/([\{\s,])([a-zA-Z0-9_]+)\s*:/g, '$1"$2":');
+        s = s.replace(/'([^']*)'/g, '"$1"');
+        return JSON.parse(s);
+      } catch (e2) {
+        // Last resort: extract known fields with regex
+        const typeMatch = raw.match(/type\s*[:=]\s*['"]?([a-zA-Z0-9-_]+)['"]?/i);
+        const responseMatch = raw.match(/response\s*[:=]\s*['"]([^'"}]*)['"]?/i) || raw.match(/response\s*[:=]\s*([^,}]+)/i);
+        const userInputMatch = raw.match(/userInput\s*[:=]\s*['"]([^'"}]*)['"]?/i) || raw.match(/userInput\s*[:=]\s*([^,}]+)/i);
+        const obj = {};
+        if (typeMatch) obj.type = typeMatch[1].trim();
+        if (responseMatch) obj.response = responseMatch[1].trim();
+        if (userInputMatch) obj.userInput = userInputMatch[1].trim();
+        return Object.keys(obj).length ? obj : null;
+      }
+    }
+  }
 
   const handleLogOut=async ()=>{
     try {
@@ -67,8 +92,14 @@ synth.speak(utterence);
   }
 
   const handleCommand=(data)=>{
+    if (!data || !data.type) {
+      console.error('Invalid data received:', data);
+      return;
+    }
     const {type,userInput,response}=data
+    if (response) {
       speak(response);
+    }
     
     if (type === 'google-search') {
       const query = encodeURIComponent(userInput);
@@ -169,20 +200,20 @@ useEffect(() => {
       recognition.stop();
       isRecognizingRef.current = false;
       setListening(false);
+
       const jsonString = await getGeminiResponse(transcript);
+      const data = parseAIResponse(jsonString);
+      if (!data) {
+        console.error("❌ Could not parse AI response:", jsonString);
+        // show raw response to user if available
+        setAiText(typeof jsonString === 'string' ? jsonString : '');
+        setUserText("");
+        return;
+      }
 
-// Convert AI JSON string into JavaScript object
-let data;
-try {
-  data = JSON.parse(jsonString);
-} catch (e) {
-  console.error("❌ Invalid JSON received:", jsonString);
-  return;
-}
-
-handleCommand(data);
-setAiText(data.response);
-setUserText("");
+      handleCommand(data);
+      setAiText(data.response || (typeof jsonString === 'string' ? jsonString : ''));
+      setUserText("");
 
       // const data = await getGeminiResponse(transcript);
       // handleCommand(data);
@@ -191,7 +222,7 @@ setUserText("");
     }
   };
 
-//  
+
     const greeting = new SpeechSynthesisUtterance(`Hello ${userData.name}, what can I help you with?`);
     greeting.lang = 'hi-IN';
    
@@ -211,7 +242,7 @@ setUserText("");
 
 
   return (
-    <div className='w-full h-[100vh] bg-gradient-to-t from-[black] to-[#02023d] flex justify-center items-center flex-col gap-[15px]'>
+    <div className='w-full h-[100vh] bg-gradient-to-t from-[black] to-[#02023d] flex justify-center items-center flex-col gap-[15px] overflow-hidden'>
       <CgMenuRight className='lg:hidden text-white absolute top-[20px] right-[20px] w-[25px] h-[25px]' onClick={()=>setHam(true)}/>
       <div className={`absolute lg:hidden top-0 w-full h-full bg-[#00000053] backdrop-blur-lg p-[20px] flex flex-col gap-[20px] items-start ${ham?"translate-x-0":"translate-x-full"} transition-transform`}>
  <RxCross1 className=' text-white absolute top-[20px] right-[20px] w-[25px] h-[25px]' onClick={()=>setHam(false)}/>
@@ -222,8 +253,8 @@ setUserText("");
 <h1 className='text-white font-semibold text-[19px]'>History</h1>
 
 <div className='w-full h-[400px] gap-[20px] overflow-y-auto flex flex-col truncate'>
-  {userData.history?.map((his)=>(
-    <div className='text-gray-200 text-[18px] w-full h-[30px]  '>{his}</div>
+  {userData.history?.map((his, index)=>(
+    <div key={index} className='text-gray-200 text-[18px] w-full h-[30px]  '>{his}</div>
   ))}
 
 </div>
